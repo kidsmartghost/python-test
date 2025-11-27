@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>DataGen (no pandas)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+</head>
+<body class="p-4">
+  <div class="container">
+    <h1>数据生成器（无需 pandas / numpy）</h1>
+    <p class="text-muted">在下面编辑 schema（JSON），点击预览或下载 CSV。</p>
+
+    <div class="mb-3">
+      <label>行数</label>
+      <input id="nRows" class="form-control" type="number" value="100" min="1"/>
+    </div>
+
+    <div class="mb-3">
+      <label>Schema（JSON）</label>
+      <textarea id="schemaBox" class="form-control" rows="12">{{ example_schema }}</textarea>
+      <div class="form-text">每个列定义示例：{"name":"col","type":"numeric","dist":"normal","params":{"mu":0,"sigma":1}}</div>
+    </div>
+
+    <div class="mb-3">
+      <button id="previewBtn" class="btn btn-outline-primary">预览 10 行</button>
+      <button id="downloadBtn" class="btn btn-primary">下载 CSV</button>
+    </div>
+
+    <h5>预览</h5>
+    <div id="previewArea" class="table-responsive"></div>
+  </div>
+
+<script>
+async function postJson(url, payload){
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  return resp;
+}
+
+document.getElementById('previewBtn').addEventListener('click', async ()=>{
+  let n = 10;
+  let schema;
+  try {
+    schema = JSON.parse(document.getElementById('schemaBox').value);
+  } catch(e){
+    alert('Schema JSON 解析失败: ' + e);
+    return;
+  }
+  const resp = await postJson('/generate_preview', {n_rows: n, schema});
+  if (!resp.ok){
+    alert('请求失败: ' + resp.status);
+    return;
+  }
+  const data = await resp.json();
+  const cols = data.columns;
+  const rows = data.rows;
+  let html = '<table class="table table-sm table-striped"><thead><tr>';
+  for (const c of cols) html += `<th>${c}</th>`;
+  html += '</tr></thead><tbody>';
+  for (const r of rows){
+    html += '<tr>';
+    for (const cell of r){
+      html += `<td>${cell === null ? '' : cell}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('previewArea').innerHTML = html;
+});
+
+document.getElementById('downloadBtn').addEventListener('click', async ()=>{
+  const n = parseInt(document.getElementById('nRows').value || '100');
+  let schema;
+  try {
+    schema = JSON.parse(document.getElementById('schemaBox').value);
+  } catch(e){
+    alert('Schema JSON 解析失败: ' + e);
+    return;
+  }
+  const resp = await postJson('/download_csv', {n_rows: n, schema});
+  if (!resp.ok) {
+    alert('下载失败: ' + resp.status);
+    return;
+  }
+  const blob = await resp.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  // 从响应头取文件名（后端固定名）
+  a.download = 'synthetic.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>
