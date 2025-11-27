@@ -1,0 +1,5 @@
+streamlit>=1.0
+pandas
+numpy
+scikit-learn
+# 其它你用到的包
